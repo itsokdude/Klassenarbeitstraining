@@ -17,13 +17,19 @@
 
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        /* Entfernt die Pfeile bei Input-Number Feldern */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useRef } = React;
 
         // --- ICONS (Inline SVGs um externe Abhängigkeiten zu vermeiden) ---
         const Icon = ({ path, className, size = 24 }) => (
@@ -65,6 +71,100 @@
             EyeOff: (props) => <Icon {...props} path={<><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></>} />,
             Highlighter: (props) => <Icon {...props} path={<><path d="m9 11-6 6v3h9l3-3"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/></>} />,
             Zap: (props) => <Icon {...props} path={<><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></>} />,
+            Clock: (props) => <Icon {...props} path={<><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></>} />,
+            Play: (props) => <Icon {...props} path={<><polygon points="5 3 19 12 5 21 5 3"/></>} />,
+            Pause: (props) => <Icon {...props} path={<><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></>} />,
+            RotateCcw: (props) => <Icon {...props} path={<><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></>} />,
+        };
+
+        // --- TIMER KOMPONENTE ---
+        const Timer = ({ duration, editable = false }) => {
+            const [timeLeft, setTimeLeft] = useState(duration);
+            const [isActive, setIsActive] = useState(false);
+            const [inputMinutes, setInputMinutes] = useState(Math.floor(duration / 60));
+
+            // Reset bei neuen Props
+            useEffect(() => {
+                setIsActive(false);
+                setTimeLeft(duration);
+                setInputMinutes(Math.floor(duration / 60));
+            }, [duration]);
+
+            useEffect(() => {
+                let interval = null;
+                if (isActive && timeLeft > 0) {
+                    interval = setInterval(() => {
+                        setTimeLeft((prevTime) => prevTime - 1);
+                    }, 1000);
+                } else if (timeLeft === 0) {
+                    setIsActive(false);
+                }
+                return () => clearInterval(interval);
+            }, [isActive, timeLeft]);
+
+            const toggle = () => setIsActive(!isActive);
+            
+            const reset = () => {
+                setIsActive(false);
+                // Wenn editable, nutze den eingegebenen Wert, sonst Standard
+                const resetTime = editable ? inputMinutes * 60 : duration;
+                setTimeLeft(resetTime);
+            };
+
+            const handleInputChange = (e) => {
+                const val = parseInt(e.target.value);
+                setInputMinutes(val);
+                if (!isNaN(val) && val >= 0) {
+                    setIsActive(false);
+                    setTimeLeft(val * 60);
+                }
+            };
+
+            const formatTime = (seconds) => {
+                const m = Math.floor(seconds / 60);
+                const s = seconds % 60;
+                return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            };
+
+            return (
+                <div className="flex items-center bg-white px-5 py-2 rounded-full shadow-md border border-slate-200 mt-8 mb-4 transition-all hover:shadow-lg">
+                    <div className="flex items-center mr-6">
+                        <Icons.Clock className={`mr-3 ${isActive ? 'text-green-500 animate-pulse' : 'text-slate-400'}`} size={24} />
+                        <div className="font-mono text-3xl font-bold text-slate-700 tabular-nums flex items-center">
+                            {editable && !isActive ? (
+                                <div className="flex items-center border-b-2 border-indigo-200 focus-within:border-indigo-500">
+                                    <input 
+                                        type="number" 
+                                        value={inputMinutes}
+                                        onChange={handleInputChange}
+                                        className="w-12 text-center bg-transparent focus:outline-none text-slate-700"
+                                        min="1"
+                                    />
+                                    <span>:00</span>
+                                </div>
+                            ) : (
+                                <span>{formatTime(timeLeft)}</span>
+                            )}
+                        </div>
+                    </div>
+                    <div className="flex space-x-2">
+                        <button 
+                            onClick={toggle} 
+                            className={`p-2 rounded-full transition-colors ${isActive ? 'bg-amber-100 text-amber-600 hover:bg-amber-200' : 'bg-green-100 text-green-600 hover:bg-green-200'}`}
+                            title={isActive ? "Pause" : "Start"}
+                        >
+                            {isActive ? <Icons.Pause size={20} /> : <Icons.Play size={20} />}
+                        </button>
+                        <button 
+                            onClick={reset} 
+                            className="p-2 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors"
+                            title="Reset"
+                        >
+                            <Icons.RotateCcw size={20} />
+                        </button>
+                    </div>
+                </div>
+            );
         };
 
         // --- DATEN ---
@@ -96,6 +196,7 @@
                 id: 2,
                 title: "Arbeitsauftrag",
                 type: "Einzelarbeit",
+                timerConfig: { duration: 600, editable: false }, // 10 Minuten
                 content: {
                     headline: "Szenario",
                     text: "Stelle dir vor, unsere Schule möchte Schulkleidung für alle verpflichtend einführen.",
@@ -121,6 +222,7 @@
                 id: 4,
                 title: "Brainstorming",
                 type: "Partnerarbeit",
+                timerConfig: { duration: 180, editable: false }, // 3 Minuten
                 content: {
                     headline: "Gegenargumente entkräften", 
                     text: "Um überzeugend zu sein, müssen wir ein Argument der Gegenseite widerlegen.", 
@@ -136,6 +238,7 @@
                 id: 5,
                 title: "Schreibphase",
                 type: "Einzelarbeit",
+                timerConfig: { duration: 900, editable: true }, // 15 Minuten (Standard), editierbar
                 content: {
                     headline: "Leserbrief verfassen",
                     text: "Entscheide dich für eine Position (Pro oder Contra). Verfasse deinen Text.",
@@ -223,7 +326,7 @@
                     <main className="flex-1 flex flex-col justify-center items-center relative z-10 w-full max-w-7xl mx-auto px-6">
                         
                         {(current.content.headline || current.content.text) && (
-                            <div className="text-center mb-10 max-w-4xl animate-in fade-in slide-in-from-bottom-8 duration-700">
+                            <div className="text-center mb-6 max-w-4xl animate-in fade-in slide-in-from-bottom-8 duration-700">
                                 {current.content.headline && (
                                     <h2 className="text-5xl md:text-6xl font-bold text-slate-900 mb-6 tracking-tight leading-tight">
                                         {current.content.headline}
@@ -235,6 +338,14 @@
                                     </p>
                                 )}
                             </div>
+                        )}
+
+                        {/* TIMER DISPLAY IF CONFIG EXISTS */}
+                        {current.timerConfig && (
+                            <Timer 
+                                duration={current.timerConfig.duration} 
+                                editable={current.timerConfig.editable} 
+                            />
                         )}
 
                         {/* VISUALS AREA */}
